@@ -286,7 +286,6 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
 int MPI_Alltoallv_3stage(const void *sendbuf, const int *sendcounts, const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
                          const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
 {
-  /* copy counts to size_t array and call MPI_Alltoallv_3stage_s */
   int ntask_all, thistask_all;
   MPI_Comm_size(comm, &ntask_all);
   MPI_Comm_rank(comm, &thistask_all);
@@ -295,6 +294,20 @@ int MPI_Alltoallv_3stage(const void *sendbuf, const int *sendcounts, const int *
   size_t *recvcounts_s = (size_t *)malloc(ntask_all * sizeof(size_t));
   size_t *sdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
   size_t *rdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
+
+  if(sendcounts_s == NULL || recvcounts_s == NULL || sdispls_s == NULL || rdispls_s == NULL)
+    {
+      if(rdispls_s != NULL)
+        free(rdispls_s);
+      if(sdispls_s != NULL)
+        free(sdispls_s);
+      if(recvcounts_s != NULL)
+        free(recvcounts_s);
+      if(sendcounts_s != NULL)
+        free(sendcounts_s);
+
+      return MPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
+    }
 
   for(int i = 0; i < ntask_all; i++)
     {
@@ -306,10 +319,10 @@ int MPI_Alltoallv_3stage(const void *sendbuf, const int *sendcounts, const int *
 
   int ret = MPI_Alltoallv_3stage_s(sendbuf, sendcounts_s, sdispls_s, sendtype, recvbuf, recvcounts_s, rdispls_s, recvtype, comm);
 
-  free(sendcounts_s);
-  free(recvcounts_s);
-  free(sdispls_s);
   free(rdispls_s);
+  free(sdispls_s);
+  free(recvcounts_s);
+  free(sendcounts_s);
 
   return ret;
 }
