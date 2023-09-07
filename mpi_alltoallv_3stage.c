@@ -1,31 +1,32 @@
-// BSD 3-Clause License
-
-// Copyright (c) 2023, YuriOku
-
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-
-// 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer.
-
-// 2. Redistributions in binary form must reproduce the above copyright notice,
-//    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution.
-
-// 3. Neither the name of the copyright holder nor the names of its
-//    contributors may be used to endorse or promote products derived from
-//    this software without specific prior written permission.
-
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* BSD 3-Clause License
+ *
+ * Copyright (c) 2023, YuriOku
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 #include "mpi_alltoallv_3stage.h"
 
@@ -319,6 +320,94 @@ int MPI_Alltoallv_3stage(const void *sendbuf, const int *sendcounts, const int *
       recvcounts_s[i] = recvcounts[i];
       sdispls_s[i]    = sdispls[i];
       rdispls_s[i]    = rdispls[i];
+    }
+
+  int ret = MPI_Alltoallv_3stage_s(sendbuf, sendcounts_s, sdispls_s, sendtype, recvbuf, recvcounts_s, rdispls_s, recvtype, comm);
+
+  free(rdispls_s);
+  free(sdispls_s);
+  free(recvcounts_s);
+  free(sendcounts_s);
+
+  return ret;
+}
+
+int MPI_Alltoall_3stage_s(const void *sendbuf, const size_t sendcount, MPI_Datatype sendtype, void *recvbuf, const size_t recvcount,
+                          MPI_Datatype recvtype, MPI_Comm comm)
+{
+  int ntask_all, thistask_all;
+  MPI_Comm_size(comm, &ntask_all);
+  MPI_Comm_rank(comm, &thistask_all);
+
+  size_t *sendcounts_s = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *recvcounts_s = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *sdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *rdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
+
+  if(sendcounts_s == NULL || recvcounts_s == NULL || sdispls_s == NULL || rdispls_s == NULL)
+    {
+      if(rdispls_s != NULL)
+        free(rdispls_s);
+      if(sdispls_s != NULL)
+        free(sdispls_s);
+      if(recvcounts_s != NULL)
+        free(recvcounts_s);
+      if(sendcounts_s != NULL)
+        free(sendcounts_s);
+
+      return MPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
+    }
+
+  for(int i = 0; i < ntask_all; i++)
+    {
+      sendcounts_s[i] = sendcount;
+      recvcounts_s[i] = recvcount;
+      sdispls_s[i]    = sendcount * i;
+      rdispls_s[i]    = recvcount * i;
+    }
+
+  int ret = MPI_Alltoallv_3stage_s(sendbuf, sendcounts_s, sdispls_s, sendtype, recvbuf, recvcounts_s, rdispls_s, recvtype, comm);
+
+  free(rdispls_s);
+  free(sdispls_s);
+  free(recvcounts_s);
+  free(sendcounts_s);
+
+  return ret;
+}
+
+int MPI_Alltoall_3stage(const void *sendbuf, const int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcount,
+                        MPI_Datatype recvtype, MPI_Comm comm)
+{
+  int ntask_all, thistask_all;
+  MPI_Comm_size(comm, &ntask_all);
+  MPI_Comm_rank(comm, &thistask_all);
+
+  size_t *sendcounts_s = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *recvcounts_s = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *sdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *rdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
+
+  if(sendcounts_s == NULL || recvcounts_s == NULL || sdispls_s == NULL || rdispls_s == NULL)
+    {
+      if(rdispls_s != NULL)
+        free(rdispls_s);
+      if(sdispls_s != NULL)
+        free(sdispls_s);
+      if(recvcounts_s != NULL)
+        free(recvcounts_s);
+      if(sendcounts_s != NULL)
+        free(sendcounts_s);
+
+      return MPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
+    }
+
+  for(int i = 0; i < ntask_all; i++)
+    {
+      sendcounts_s[i] = sendcount;
+      recvcounts_s[i] = recvcount;
+      sdispls_s[i]    = sendcount * i;
+      rdispls_s[i]    = recvcount * i;
     }
 
   int ret = MPI_Alltoallv_3stage_s(sendbuf, sendcounts_s, sdispls_s, sendtype, recvbuf, recvcounts_s, rdispls_s, recvtype, comm);

@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+test.out
+osu_alltoall
+osu_alltoallv
+
+.vscode
