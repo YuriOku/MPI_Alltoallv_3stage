@@ -104,6 +104,10 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
   int disp_unit;
   MPI_Win_shared_query(win, 0, &size, &disp_unit, &Base);
 
+  MPI_Allreduce(MPI_IN_PLACE, &flag_type, 1, MPI_INT, MPI_MIN, comm);
+  MPI_Allreduce(MPI_IN_PLACE, &flag_comm, 1, MPI_INT, MPI_MIN, comm);
+  MPI_Allreduce(MPI_IN_PLACE, &flag_task, 1, MPI_INT, MPI_MIN, comm);
+
   if(flag_type == 0 || flag_comm == 0 || flag_task == 0)
     {
       if(flag_comm == 1)
