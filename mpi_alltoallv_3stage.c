@@ -41,6 +41,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
 {
   /* check if sendtype==recvtype, the number of task on each node is the same, and we have enough memory */
   int flag_type = 0, flag_comm = 0, flag_task = 0;
+  int i, j;
 
   if(sendtype == recvtype)
     flag_type = 1;
@@ -80,7 +81,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
     flag_task = 1;
 
   size_t totsend = 0, totrecv = 0;
-  for(int i = 0; i < ntask_all; i++)
+  for(i = 0; i < ntask_all; i++)
     {
       totsend += sendcounts[i];
       totrecv += recvcounts[i];
@@ -176,7 +177,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
 
   if(thistask_node == 0)
     {
-      for(int i = 0; i < ntask_inter; i++)
+      for(i = 0; i < ntask_inter; i++)
         {
           sendcounts_inter[i] = 0;
           recvcounts_inter[i] = 0;
@@ -184,7 +185,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
           rdispls_inter[i]    = 0;
         }
 
-      for(int j = 0; j < ntask_node; j++)
+      for(j = 0; j < ntask_node; j++)
         {
           if(j == 0)
             {
@@ -197,16 +198,16 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
               totrdispls_node[j] = totrdispls_node[j - 1] + totrecvcounts_node[j - 1];
             }
 
-          for(int i = 0; i < ntask_all; i++)
+          for(i = 0; i < ntask_all; i++)
             {
               sendcounts_inter[i / ntask_node] += sendcounts_node[i + j * ntask_all];
               recvcounts_inter[i / ntask_node] += recvcounts_node[i + j * ntask_all];
             }
         }
 
-      for(int i = 0; i < ntask_all; i++)
+      for(i = 0; i < ntask_all; i++)
         {
-          for(int j = 0; j < ntask_node; j++)
+          for(j = 0; j < ntask_node; j++)
             {
               if(i == 0 && j == 0)
                 {
@@ -224,7 +225,8 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
             }
         }
 
-      for(int ind = 0; ind < ntask_all * ntask_node; ind++)
+      int ind;
+      for(ind = 0; ind < ntask_all * ntask_node; ind++)
         {
           if(ind == 0)
             rdispls_node[0] = 0;
@@ -238,7 +240,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
             }
         }
 
-      for(int j = 0; j < ntask_inter; j++)
+      for(j = 0; j < ntask_inter; j++)
         {
           if(j == 0)
             {
@@ -255,7 +257,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
 
   MPI_Barrier(comm_node);
 
-  for(int i = 0; i < ntask_all; i++)
+  for(i = 0; i < ntask_all; i++)
     {
       memcpy(sendbuf_inter + sdispls_node[i * ntask_node + thistask_node] * typesize, PCHAR(sendbuf) + sdispls[i] * typesize,
              sendcounts[i] * typesize);
@@ -271,7 +273,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
   MPI_Barrier(comm_node);
 
   /*scatter*/
-  for(int i = 0; i < ntask_all; i++)
+  for(i = 0; i < ntask_all; i++)
     memcpy(PCHAR(recvbuf) + rdispls[i] * typesize,
            recvbuf_inter +
                rdispls_node[i % ntask_node + thistask_node * ntask_node + (i / ntask_node) * ntask_node * ntask_node] * typesize,
@@ -314,7 +316,8 @@ int MPI_Alltoallv_3stage(const void *sendbuf, const int *sendcounts, const int *
       return MPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
     }
 
-  for(int i = 0; i < ntask_all; i++)
+  int i;
+  for(i = 0; i < ntask_all; i++)
     {
       sendcounts_s[i] = sendcounts[i];
       recvcounts_s[i] = recvcounts[i];
@@ -358,7 +361,8 @@ int MPI_Alltoall_3stage_s(const void *sendbuf, const size_t sendcount, MPI_Datat
       return MPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
     }
 
-  for(int i = 0; i < ntask_all; i++)
+  int i;
+  for(i = 0; i < ntask_all; i++)
     {
       sendcounts_s[i] = sendcount;
       recvcounts_s[i] = recvcount;
@@ -402,7 +406,8 @@ int MPI_Alltoall_3stage(const void *sendbuf, const int sendcount, MPI_Datatype s
       return MPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
     }
 
-  for(int i = 0; i < ntask_all; i++)
+  int i;
+  for(i = 0; i < ntask_all; i++)
     {
       sendcounts_s[i] = sendcount;
       recvcounts_s[i] = recvcount;
@@ -444,7 +449,8 @@ void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const 
     memcpy(PCHAR(recvbuf) + rdispls[thistask] * typesize_recv, PCHAR(sendbuf) + sdispls[thistask] * typesize_send,
            recvcounts[thistask] * typesize_recv);
 
-  for(int iloop = 0; iloop < nloop; iloop++)
+  int iloop, ngrp;
+  for(iloop = 0; iloop < nloop; iloop++)
     {
       int n_requests = 0;
       int ngrp_start = iloop * COLLECTIVE_ISEND_IRECV_THROTTLE + 1;
@@ -452,7 +458,7 @@ void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const 
       if(ngrp_end > lptask)
         ngrp_end = lptask;
 
-      for(int ngrp = ngrp_start; ngrp < ngrp_end; ngrp++)
+      for(ngrp = ngrp_start; ngrp < ngrp_end; ngrp++)
         {
           int otask = thistask ^ ngrp;
           if(otask < ntask)
@@ -461,7 +467,7 @@ void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const 
                         &requests[n_requests++]);
         }
 
-      for(int ngrp = ngrp_start; ngrp < ngrp_end; ngrp++)
+      for(ngrp = ngrp_start; ngrp < ngrp_end; ngrp++)
         {
           int otask = thistask ^ ngrp;
           if(otask < ntask)
