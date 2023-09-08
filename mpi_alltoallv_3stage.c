@@ -36,12 +36,75 @@
 #define PCHAR(x) ((char *)(x))
 #define COLLECTIVE_ISEND_IRECV_THROTTLE 32
 
+void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
+                           const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
+{
+  int ntask, thistask;
+  MPI_Comm_size(comm, &ntask);
+  MPI_Comm_rank(comm, &thistask);
+
+  int lptask = 1;
+  while(lptask < ntask)
+    lptask <<= 1;
+
+  int nloop = (lptask - 1) / COLLECTIVE_ISEND_IRECV_THROTTLE + 1;
+
+  MPI_Request *requests = (MPI_Request *)malloc(sizeof(MPI_Request) * COLLECTIVE_ISEND_IRECV_THROTTLE * 2);
+  MPI_Status *statuses  = (MPI_Status *)malloc(sizeof(MPI_Status) * COLLECTIVE_ISEND_IRECV_THROTTLE * 2);
+
+  int typesize_send, typesize_recv;
+  MPI_Type_size(sendtype, &typesize_send);
+  MPI_Type_size(recvtype, &typesize_recv);
+
+  if(recvcounts[thistask] > 0)  // local communication
+    memcpy(PCHAR(recvbuf) + rdispls[thistask] * typesize_recv, PCHAR(sendbuf) + sdispls[thistask] * typesize_send,
+           recvcounts[thistask] * typesize_recv);
+
+  int iloop, ngrp;
+  for(iloop = 0; iloop < nloop; iloop++)
+    {
+      int n_requests = 0;
+      int ngrp_start = iloop * COLLECTIVE_ISEND_IRECV_THROTTLE + 1;
+      int ngrp_end   = (iloop + 1) * COLLECTIVE_ISEND_IRECV_THROTTLE + 1;
+      if(ngrp_end > lptask)
+        ngrp_end = lptask;
+
+      for(ngrp = ngrp_start; ngrp < ngrp_end; ngrp++)
+        {
+          int otask = thistask ^ ngrp;
+          if(otask < ntask)
+            if(recvcounts[otask] > 0)
+              MPI_Irecv(PCHAR(recvbuf) + rdispls[otask] * typesize_recv, recvcounts[otask] * typesize_recv, MPI_BYTE, otask, 0, comm,
+                        &requests[n_requests++]);
+        }
+
+      for(ngrp = ngrp_start; ngrp < ngrp_end; ngrp++)
+        {
+          int otask = thistask ^ ngrp;
+          if(otask < ntask)
+            if(sendcounts[otask] > 0)
+              MPI_Isend(PCHAR(sendbuf) + sdispls[otask] * typesize_send, sendcounts[otask] * typesize_send, MPI_BYTE, otask, 0, comm,
+                        &requests[n_requests++]);
+        }
+
+      MPI_Waitall(n_requests, requests, statuses);
+    }
+
+  free(statuses);
+  free(requests);
+}
+
 int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
                            const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
 {
   /* check if sendtype==recvtype, the number of task on each node is the same, and we have enough memory */
   int flag_type = 0, flag_comm = 0, flag_task = 0;
   int i, j;
+
+  int cnttmr = 0;
+  double tmr[10];
+
+  tmr[cnttmr++] = MPI_Wtime();
 
   if(sendtype == recvtype)
     flag_type = 1;
@@ -174,6 +237,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
   totrecvcounts_node[thistask_node] = totrecv;
 
   MPI_Barrier(comm_node);
+  tmr[cnttmr++] = MPI_Wtime();
 
   if(thistask_node == 0)
     {
@@ -256,6 +320,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
     }
 
   MPI_Barrier(comm_node);
+  tmr[cnttmr++] = MPI_Wtime();
 
   for(i = 0; i < ntask_all; i++)
     {
@@ -264,6 +329,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
     }
 
   MPI_Barrier(comm_node);
+  tmr[cnttmr++] = MPI_Wtime();
 
   /*alltoallv*/
   if(thistask_node == 0)
@@ -271,6 +337,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
                           recvtype, comm_inter);
 
   MPI_Barrier(comm_node);
+  tmr[cnttmr++] = MPI_Wtime();
 
   /*scatter*/
   for(i = 0; i < ntask_all; i++)
@@ -280,12 +347,19 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
            recvcounts_node[i + thistask_node * ntask_all] * typesize);
 
   MPI_Barrier(comm_node);
+  tmr[cnttmr++] = MPI_Wtime();
 
   MPI_Win_free(&win);
 
   MPI_Comm_free(&comm_node);
   if(thistask_node == 0)
     MPI_Comm_free(&comm_inter);
+
+  // if(thistask_all == 0)
+  //   {
+  //     for(i = 0; i < cnttmr; i++)
+  //       printf("tmr[%d] = %lf\n", i, tmr[i] - tmr[0]);
+  //   }
 
   return MPI_SUCCESS;
 }
@@ -423,62 +497,4 @@ int MPI_Alltoall_3stage(const void *sendbuf, const int sendcount, MPI_Datatype s
   free(sendcounts_s);
 
   return ret;
-}
-
-void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                           const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
-{
-  int ntask, thistask;
-  MPI_Comm_size(comm, &ntask);
-  MPI_Comm_rank(comm, &thistask);
-
-  int lptask = 1;
-  while(lptask < ntask)
-    lptask <<= 1;
-
-  int nloop = (lptask - 1) / COLLECTIVE_ISEND_IRECV_THROTTLE + 1;
-
-  MPI_Request *requests = (MPI_Request *)malloc(sizeof(MPI_Request) * COLLECTIVE_ISEND_IRECV_THROTTLE * 2);
-  MPI_Status *statuses  = (MPI_Status *)malloc(sizeof(MPI_Status) * COLLECTIVE_ISEND_IRECV_THROTTLE * 2);
-
-  int typesize_send, typesize_recv;
-  MPI_Type_size(sendtype, &typesize_send);
-  MPI_Type_size(recvtype, &typesize_recv);
-
-  if(recvcounts[thistask] > 0)  // local communication
-    memcpy(PCHAR(recvbuf) + rdispls[thistask] * typesize_recv, PCHAR(sendbuf) + sdispls[thistask] * typesize_send,
-           recvcounts[thistask] * typesize_recv);
-
-  int iloop, ngrp;
-  for(iloop = 0; iloop < nloop; iloop++)
-    {
-      int n_requests = 0;
-      int ngrp_start = iloop * COLLECTIVE_ISEND_IRECV_THROTTLE + 1;
-      int ngrp_end   = (iloop + 1) * COLLECTIVE_ISEND_IRECV_THROTTLE + 1;
-      if(ngrp_end > lptask)
-        ngrp_end = lptask;
-
-      for(ngrp = ngrp_start; ngrp < ngrp_end; ngrp++)
-        {
-          int otask = thistask ^ ngrp;
-          if(otask < ntask)
-            if(recvcounts[otask] > 0)
-              MPI_Irecv(PCHAR(recvbuf) + rdispls[otask] * typesize_recv, recvcounts[otask] * typesize_recv, MPI_BYTE, otask, 0, comm,
-                        &requests[n_requests++]);
-        }
-
-      for(ngrp = ngrp_start; ngrp < ngrp_end; ngrp++)
-        {
-          int otask = thistask ^ ngrp;
-          if(otask < ntask)
-            if(sendcounts[otask] > 0)
-              MPI_Isend(sendbuf + sdispls[otask] * typesize_send, sendcounts[otask] * typesize_send, MPI_BYTE, otask, 0, comm,
-                        &requests[n_requests++]);
-        }
-
-      MPI_Waitall(n_requests, requests, statuses);
-    }
-
-  free(statuses);
-  free(requests);
 }

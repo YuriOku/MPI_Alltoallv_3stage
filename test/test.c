@@ -42,6 +42,14 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+  int use_3stage = 1;
+  if(argc > 1)
+    {
+      use_3stage = atoi(argv[1]);
+    }
+  if(rank == 0)
+    printf("use_3stage = %d\n", use_3stage);
+
   int n           = 5;
   int *sendcounts = (int *)malloc(sizeof(int) * size);
   int *recvcounts = (int *)malloc(sizeof(int) * size);
@@ -68,7 +76,10 @@ int main(int argc, char **argv)
     }
 
   double t1 = MPI_Wtime();
-  MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
+  if(use_3stage)
+    MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
+  else
+    MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
   double t2 = MPI_Wtime();
 
   int success = 1;

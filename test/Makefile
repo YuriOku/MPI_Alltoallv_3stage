@@ -4,7 +4,7 @@
 CC = mpicc
 
 # Compiler flags
-CFLAGS = -Wall -O2 -g
+CFLAGS = -Wall -O3 -g
 
 # Linker flags
 LDFLAGS = -lm
