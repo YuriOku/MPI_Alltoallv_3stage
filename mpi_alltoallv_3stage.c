@@ -102,10 +102,12 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
   int flag_type = 0, flag_comm = 0, flag_task = 0;
   int i, j;
 
-  int cnttmr = 0;
+  int cnttmr = 0, showtmr = 0;
   double tmr[10];
+  int linetmr[10];
 
-  tmr[cnttmr++] = MPI_Wtime();
+  linetmr[cnttmr] = __LINE__;
+  tmr[cnttmr++]   = MPI_Wtime();
 
   if(sendtype == recvtype)
     flag_type = 1;
@@ -238,7 +240,8 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
   totrecvcounts_node[thistask_node] = totrecv;
 
   MPI_Barrier(comm_node);
-  tmr[cnttmr++] = MPI_Wtime();
+  linetmr[cnttmr] = __LINE__;
+  tmr[cnttmr++]   = MPI_Wtime();
 
   if(thistask_node == 0)
     {
@@ -321,7 +324,8 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
     }
 
   MPI_Barrier(comm_node);
-  tmr[cnttmr++] = MPI_Wtime();
+  linetmr[cnttmr] = __LINE__;
+  tmr[cnttmr++]   = MPI_Wtime();
 
   for(i = 0; i < ntask_all; i++)
     {
@@ -330,7 +334,8 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
     }
 
   MPI_Barrier(comm_node);
-  tmr[cnttmr++] = MPI_Wtime();
+  linetmr[cnttmr] = __LINE__;
+  tmr[cnttmr++]   = MPI_Wtime();
 
   /*alltoallv*/
   if(thistask_node == 0)
@@ -338,7 +343,8 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
                           recvtype, comm_inter);
 
   MPI_Barrier(comm_node);
-  tmr[cnttmr++] = MPI_Wtime();
+  linetmr[cnttmr] = __LINE__;
+  tmr[cnttmr++]   = MPI_Wtime();
 
   /*scatter*/
   for(i = 0; i < ntask_all; i++)
@@ -348,7 +354,8 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
            recvcounts_node[i + thistask_node * ntask_all] * typesize);
 
   MPI_Barrier(comm_node);
-  tmr[cnttmr++] = MPI_Wtime();
+  linetmr[cnttmr] = __LINE__;
+  tmr[cnttmr++]   = MPI_Wtime();
 
   MPI_Win_free(&win);
 
@@ -356,10 +363,10 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
   if(thistask_node == 0)
     MPI_Comm_free(&comm_inter);
 
-  if(thistask_all == 0)
+  if(thistask_all == 0 && showtmr == 1)
     {
       for(i = 0; i < cnttmr; i++)
-        printf("tmr[%d] = %lf\n", i, tmr[i] - tmr[0]);
+        printf("time %d: L.%d %lf\n", i, linetmr[i], tmr[i] - tmr[0]);
     }
 
   return MPI_SUCCESS;
