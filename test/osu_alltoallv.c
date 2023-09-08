@@ -101,11 +101,6 @@ int main(int argc, char *argv[])
   MPI_CHECK(MPI_Comm_rank(omb_comm, &rank));
   MPI_CHECK(MPI_Comm_size(omb_comm, &numprocs));
 
-  if(rank == 0)
-    {
-      printf("use_3stage = %d\n", options.use_3stage);
-    }
-
   omb_graph_options_init(&omb_graph_options);
   switch(po_ret)
     {
@@ -183,6 +178,13 @@ int main(int argc, char *argv[])
 
   print_preamble(rank);
   omb_papi_init(&papi_eventset);
+
+  
+  if(rank == 0)
+    {
+      printf("# use_3stage = %d\n", options.use_3stage);
+    }
+
 
   MPI_CHECK(MPI_Barrier(omb_comm));
   for(mpi_type_itr = 0; mpi_type_itr < options.omb_dtype_itr; mpi_type_itr++)

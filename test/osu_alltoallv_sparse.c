@@ -1,4 +1,5 @@
-#define BENCHMARK "OSU MPI%s All-to-All Personalized Exchange Latency Test"
+#define BENCHMARK "OSU MPI%s All-to-Allv Personalized Exchange Latency Test"
+
 /*                          COPYRIGHT
  *
  * Copyright (c) 2001-2023, The Ohio State University. All rights
@@ -46,17 +47,19 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include "../mpi_alltoallv_3stage.h"
 #include "osu_util_mpi.h"
 
 int main(int argc, char *argv[])
 {
-  int i, j, numprocs, rank, size;
+  int i = 0, j, rank = 0, size, numprocs, disp;
   double latency = 0.0, t_start = 0.0, t_stop = 0.0;
   double timer = 0.0;
   int errors = 0, local_errors = 0;
   double avg_time = 0.0, max_time = 0.0, min_time = 0.0;
   char *sendbuf = NULL, *recvbuf = NULL;
+  int *rdispls = NULL, *recvcounts = NULL, *sdispls = NULL, *sendcounts = NULL;
   void *sendbuf_warmup = NULL, *recvbuf_warmup = NULL;
   int po_ret;
   size_t bufsize;
@@ -76,7 +79,7 @@ int main(int argc, char *argv[])
   struct omb_buffer_sizes_t omb_buffer_sizes;
 
   set_header(HEADER);
-  set_benchmark_name("osu_alltoall");
+  set_benchmark_name("osu_alltoallv");
   po_ret = process_options(argc, argv);
   omb_populate_mpi_type_list(mpi_type_list);
 
@@ -123,12 +126,33 @@ int main(int argc, char *argv[])
         {
           fprintf(stderr, "This test requires at least two processes\n");
         }
-
       omb_mpi_finalize(omb_init_h);
       exit(EXIT_FAILURE);
     }
   check_mem_limit(numprocs);
-  bufsize = options.max_message_size * numprocs;
+  if(allocate_memory_coll((void **)&recvcounts, numprocs * sizeof(int), NONE))
+    {
+      fprintf(stderr, "Could Not Allocate Memory [rank %d]\n", rank);
+      MPI_CHECK(MPI_Abort(omb_comm, EXIT_FAILURE));
+    }
+  if(allocate_memory_coll((void **)&sendcounts, numprocs * sizeof(int), NONE))
+    {
+      fprintf(stderr, "Could Not Allocate Memory [rank %d]\n", rank);
+      MPI_CHECK(MPI_Abort(omb_comm, EXIT_FAILURE));
+    }
+
+  if(allocate_memory_coll((void **)&rdispls, numprocs * sizeof(int), NONE))
+    {
+      fprintf(stderr, "Could Not Allocate Memory [rank %d]\n", rank);
+      MPI_CHECK(MPI_Abort(omb_comm, EXIT_FAILURE));
+    }
+  if(allocate_memory_coll((void **)&sdispls, numprocs * sizeof(int), NONE))
+    {
+      fprintf(stderr, "Could Not Allocate Memory [rank %d]\n", rank);
+      MPI_CHECK(MPI_Abort(omb_comm, EXIT_FAILURE));
+    }
+
+  bufsize = 10 * options.max_message_size * numprocs;
   if(allocate_memory_coll((void **)&sendbuf, bufsize, options.accel))
     {
       fprintf(stderr, "Could Not Allocate Memory [rank %d]\n", rank);
@@ -143,7 +167,6 @@ int main(int argc, char *argv[])
       fprintf(stderr, "Could Not Allocate Memory [rank %d]\n", rank);
       MPI_CHECK(MPI_Abort(omb_comm, EXIT_FAILURE));
     }
-
   set_buffer(recvbuf, options.accel, 0, bufsize);
   omb_buffer_sizes.recvbuf_size = bufsize;
   if(allocate_memory_coll((void **)&recvbuf_warmup, bufsize, options.accel))
@@ -152,14 +175,27 @@ int main(int argc, char *argv[])
       MPI_CHECK(MPI_Abort(omb_comm, EXIT_FAILURE));
     }
   set_buffer(recvbuf_warmup, options.accel, 0, bufsize);
+
   print_preamble(rank);
   omb_papi_init(&papi_eventset);
-  
+
+  srand(rank * 3421);
+
   if(rank == 0)
     {
       printf("# use_3stage = %d\n", options.use_3stage);
     }
 
+  if(options.validate == 1)
+    {
+      options.validate = 0;
+      if(rank == 0)
+        {
+          printf("# Validation is not supported for this test\n");
+        }
+    }
+
+  MPI_CHECK(MPI_Barrier(omb_comm));
   for(mpi_type_itr = 0; mpi_type_itr < options.omb_dtype_itr; mpi_type_itr++)
     {
       MPI_CHECK(MPI_Type_size(mpi_type_list[mpi_type_itr], &mpi_type_size));
@@ -181,14 +217,31 @@ int main(int argc, char *argv[])
               options.iterations = options.iterations_large;
             }
 
+          omb_ddt_transmit_size = omb_ddt_assign(&omb_curr_datatype, mpi_type_list[mpi_type_itr], num_elements) * mpi_type_size;
+          num_elements          = omb_ddt_get_size(num_elements);
+          MPI_CHECK(MPI_Barrier(omb_comm));
+
           omb_graph_allocate_and_get_data_buffer(&omb_graph_data, &omb_graph_options, size, options.iterations);
           MPI_CHECK(MPI_Barrier(omb_comm));
           timer = 0.0;
-
-          omb_ddt_transmit_size = omb_ddt_assign(&omb_curr_datatype, mpi_type_list[mpi_type_itr], num_elements) * mpi_type_size;
-          num_elements          = omb_ddt_get_size(num_elements);
           for(i = 0; i < options.iterations + options.skip; i++)
             {
+              disp = 0;
+              for(j = 0; j < numprocs; j++)
+                {
+                  sendcounts[j] = ((double)rand() / RAND_MAX < 0.1) ? (10 * num_elements) : 0;
+                  sdispls[j]    = disp;
+                  disp += sendcounts[j];
+                }
+              MPI_CHECK(MPI_Alltoall(sendcounts, 1, MPI_INT, recvcounts, 1, MPI_INT, omb_comm));
+              disp = 0;
+              for(j = 0; j < numprocs; j++)
+                {
+                  rdispls[j] = disp;
+                  disp += recvcounts[j];
+                }
+
+              MPI_CHECK(MPI_Barrier(omb_comm));
               if(i == options.skip)
                 {
                   omb_papi_start(&papi_eventset);
@@ -204,22 +257,26 @@ int main(int argc, char *argv[])
                     {
                       MPI_CHECK(MPI_Barrier(omb_comm));
                       if(options.use_3stage)
-                        MPI_CHECK(MPI_Alltoall_3stage(sendbuf_warmup, num_elements, omb_curr_datatype, recvbuf_warmup, num_elements,
-                                                      omb_curr_datatype, omb_comm));
+                        MPI_CHECK(MPI_Alltoallv_3stage(sendbuf_warmup, sendcounts, sdispls, omb_curr_datatype, recvbuf_warmup,
+                                                       recvcounts, rdispls, omb_curr_datatype, omb_comm));
                       else
-                        MPI_CHECK(MPI_Alltoall(sendbuf_warmup, num_elements, omb_curr_datatype, recvbuf_warmup, num_elements,
-                                               omb_curr_datatype, omb_comm));
+                        MPI_CHECK(MPI_Alltoallv(sendbuf_warmup, sendcounts, sdispls, omb_curr_datatype, recvbuf_warmup, recvcounts,
+                                                rdispls, omb_curr_datatype, omb_comm));
                     }
                   MPI_CHECK(MPI_Barrier(omb_comm));
                 }
 
               t_start = MPI_Wtime();
+
               if(options.use_3stage)
-                MPI_CHECK(
-                    MPI_Alltoall_3stage(sendbuf, num_elements, omb_curr_datatype, recvbuf, num_elements, omb_curr_datatype, omb_comm));
+                MPI_CHECK(MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
+                                               omb_curr_datatype, omb_comm));
               else
-                MPI_CHECK(MPI_Alltoall(sendbuf, num_elements, omb_curr_datatype, recvbuf, num_elements, omb_curr_datatype, omb_comm));
+                MPI_CHECK(MPI_Alltoallv(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
+                                        omb_curr_datatype, omb_comm));
+
               t_stop = MPI_Wtime();
+
               MPI_CHECK(MPI_Barrier(omb_comm));
 
               if(options.validate)
@@ -237,6 +294,7 @@ int main(int argc, char *argv[])
                 }
             }
           omb_papi_stop_and_print(&papi_eventset, size);
+
           latency = (double)(timer * 1e6) / options.iterations;
 
           MPI_CHECK(MPI_Reduce(&latency, &min_time, 1, MPI_DOUBLE, MPI_MIN, 0, omb_comm));
@@ -279,6 +337,10 @@ int main(int argc, char *argv[])
   omb_graph_free_data_buffers(&omb_graph_options);
   omb_papi_free(&papi_eventset);
 
+  free_buffer(rdispls, NONE);
+  free_buffer(sdispls, NONE);
+  free_buffer(recvcounts, NONE);
+  free_buffer(sendcounts, NONE);
   free_buffer(sendbuf_warmup, options.accel);
   free_buffer(recvbuf_warmup, options.accel);
   free_buffer(recvbuf, options.accel);
@@ -304,4 +366,5 @@ int main(int argc, char *argv[])
 
   return EXIT_SUCCESS;
 }
+
 /* vi: set sw=4 sts=4 tw=80: */

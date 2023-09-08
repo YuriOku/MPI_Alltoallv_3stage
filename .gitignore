@@ -34,5 +34,7 @@
 test.out
 osu_alltoall
 osu_alltoallv
+osu_alltoallv_random
+osu_alltoallv_sparse
 
 .vscode
