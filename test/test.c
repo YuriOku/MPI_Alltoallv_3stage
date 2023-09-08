@@ -42,6 +42,8 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+  int i, j;
+
   int use_3stage = 1;
   if(argc > 1)
     {
@@ -56,7 +58,7 @@ int main(int argc, char **argv)
   int *sdispls    = (int *)malloc(sizeof(int) * size);
   int *rdispls    = (int *)malloc(sizeof(int) * size);
 
-  for(int i = 0; i < size; ++i)
+  for(i = 0; i < size; ++i)
     {
       sendcounts[i] = n;
       recvcounts[i] = n;
@@ -67,9 +69,9 @@ int main(int argc, char **argv)
   int *sendbuf = (int *)malloc(sizeof(int) * n * size);
   int *recvbuf = (int *)malloc(sizeof(int) * n * size);
 
-  for(int i = 0; i < size; ++i)
+  for(i = 0; i < size; ++i)
     {
-      for(int j = 0; j < n; ++j)
+      for(j = 0; j < n; ++j)
         {
           sendbuf[i * n + j] = rank * n + i;
         }
@@ -83,9 +85,9 @@ int main(int argc, char **argv)
   double t2 = MPI_Wtime();
 
   int success = 1;
-  for(int i = 0; i < size; ++i)
+  for(i = 0; i < size; ++i)
     {
-      for(int j = 0; j < n; ++j)
+      for(j = 0; j < n; ++j)
         {
           if(recvbuf[i * n + j] != i * n + rank)
             {
