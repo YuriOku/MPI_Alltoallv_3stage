@@ -52,7 +52,7 @@ int main(int argc, char **argv)
   if(rank == 0)
     printf("use_3stage = %d\n", use_3stage);
 
-  int n           = 5;
+  int n           = 1000;
   int *sendcounts = (int *)malloc(sizeof(int) * size);
   int *recvcounts = (int *)malloc(sizeof(int) * size);
   int *sdispls    = (int *)malloc(sizeof(int) * size);

@@ -36,6 +36,7 @@
 
 #define PCHAR(x) ((char *)(x))
 #define COLLECTIVE_ISEND_IRECV_THROTTLE 32
+#define MAX_NTASK_NODE 8
 
 void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
                            const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
@@ -119,11 +120,28 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
   MPI_Comm_size(comm, &ntask_all);
   MPI_Comm_rank(comm, &thistask_all);
 
-  MPI_Comm comm_node;
+  MPI_Comm comm_node0, comm_node;
   int ntask_node, thistask_node;
-  MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, thistask_all, MPI_INFO_NULL, &comm_node);
-  MPI_Comm_size(comm_node, &ntask_node);
-  MPI_Comm_rank(comm_node, &thistask_node);
+  MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, thistask_all, MPI_INFO_NULL, &comm_node0);
+  MPI_Comm_size(comm_node0, &ntask_node);
+  MPI_Comm_rank(comm_node0, &thistask_node);
+
+  int max_ntask_node = MAX_NTASK_NODE;
+  while(ntask_node % max_ntask_node != 0)
+    max_ntask_node--;
+
+  /* further split */
+  if(ntask_node > max_ntask_node)
+    {
+      int color = thistask_node / max_ntask_node;
+      MPI_Comm_split(comm_node0, color, thistask_node, &comm_node);
+      MPI_Comm_rank(comm_node, &thistask_node);
+      MPI_Comm_size(comm_node, &ntask_node);
+    }
+  else
+    {
+      comm_node = comm_node0;
+    }
 
   MPI_Comm comm_inter;
   int ntask_inter, thistask_inter;
@@ -359,6 +377,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
 
   MPI_Win_free(&win);
 
+  MPI_Comm_free(&comm_node0);
   MPI_Comm_free(&comm_node);
   if(thistask_node == 0)
     MPI_Comm_free(&comm_inter);
