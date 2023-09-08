@@ -104,8 +104,8 @@
 #define OMBOP__ACCEL__PT2PT__LAT_MT           OMBOP__ACCEL__PT2PT__LAT
 #define OMBOP__PT2PT__LAT_MP                  "+:hvm:x:i:t:cu:G:D:P:T:I"
 #define OMBOP__ACCEL__PT2PT__LAT_MP           OMBOP__ACCEL__PT2PT__LAT
-#define OMBOP__COLLECTIVE__ALLTOALL           "+:hvfm:i:x:M:a:cu:G:D:P:T:Il"
-#define OMBOP__ACCEL__COLLECTIVE__ALLTOALL    "+:d:hvfm:i:x:M:a:cu:G:D:T:Il"
+#define OMBOP__COLLECTIVE__ALLTOALL           "+:hvfm:i:x:M:a:cu:G:D:P:T:IlE:"
+#define OMBOP__ACCEL__COLLECTIVE__ALLTOALL    "+:d:hvfm:i:x:M:a:cu:G:D:T:IlE:"
 #define OMBOP__COLLECTIVE__GATHER             OMBOP__COLLECTIVE__ALLTOALL "k:"
 #define OMBOP__ACCEL__COLLECTIVE__GATHER      OMBOP__ACCEL__COLLECTIVE__ALLTOALL "k:"
 #define OMBOP__COLLECTIVE__ALL_GATHER         OMBOP__COLLECTIVE__ALLTOALL

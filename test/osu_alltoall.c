@@ -98,15 +98,9 @@ int main(int argc, char *argv[])
   MPI_CHECK(MPI_Comm_rank(omb_comm, &rank));
   MPI_CHECK(MPI_Comm_size(omb_comm, &numprocs));
 
-  int use_3stage = 1;
-  if(argc > 1)
-    {
-      use_3stage = atoi(argv[1]);  // use default MPI_Alltoall if 0 is passed
-    }
-
   if(rank == 0)
     {
-      printf("use_3stage = %d\n", use_3stage);
+      printf("use_3stage = %d\n", options.use_3stage);
     }
 
   omb_graph_options_init(&omb_graph_options);
@@ -209,7 +203,7 @@ int main(int argc, char *argv[])
                   for(j = 0; j < options.warmup_validation; j++)
                     {
                       MPI_CHECK(MPI_Barrier(omb_comm));
-                      if(use_3stage)
+                      if(options.use_3stage)
                         MPI_CHECK(MPI_Alltoall_3stage(sendbuf_warmup, num_elements, omb_curr_datatype, recvbuf_warmup, num_elements,
                                                       omb_curr_datatype, omb_comm));
                       else
@@ -220,7 +214,7 @@ int main(int argc, char *argv[])
                 }
 
               t_start = MPI_Wtime();
-              if(use_3stage)
+              if(options.use_3stage)
                 MPI_CHECK(
                     MPI_Alltoall_3stage(sendbuf, num_elements, omb_curr_datatype, recvbuf, num_elements, omb_curr_datatype, omb_comm));
               else

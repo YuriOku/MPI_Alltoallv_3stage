@@ -30,6 +30,7 @@
 
 #include "mpi_alltoallv_3stage.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -355,11 +356,11 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
   if(thistask_node == 0)
     MPI_Comm_free(&comm_inter);
 
-  // if(thistask_all == 0)
-  //   {
-  //     for(i = 0; i < cnttmr; i++)
-  //       printf("tmr[%d] = %lf\n", i, tmr[i] - tmr[0]);
-  //   }
+  if(thistask_all == 0)
+    {
+      for(i = 0; i < cnttmr; i++)
+        printf("tmr[%d] = %lf\n", i, tmr[i] - tmr[0]);
+    }
 
   return MPI_SUCCESS;
 }

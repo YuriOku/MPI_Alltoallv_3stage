@@ -642,6 +642,7 @@ int process_options(int argc, char *argv[])
     options.omb_enable_session = 0;
     options.omb_enable_mpi_in_place = 0;
     options.omb_root_rank = 0;
+    options.use_3stage = 1;
 
     switch (options.subtype) {
         case BW:
@@ -761,6 +762,9 @@ int process_options(int argc, char *argv[])
                         }
                     }
                 }
+                break;
+            case 'E':
+                options.use_3stage = atoi(optarg);
                 break;
             case 'i':
                 if (set_num_iterations(atoi(optarg))) {
