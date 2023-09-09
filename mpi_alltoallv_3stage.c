@@ -513,7 +513,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
   size_t *rdispls_node = (size_t *)(Base + offset);
   offset += ntask_node * ntask_all * sizeof(size_t);
 
-  char *sendbuf_inter, *recvbuf_inter;
+  char *sendbuf_inter = NULL, *recvbuf_inter = NULL;
   if(thistask_node == 0)
     {
       sendbuf_inter = Base + offset;
