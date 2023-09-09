@@ -35,7 +35,7 @@
 #include <string.h>
 
 #define PCHAR(x) ((char *)(x))
-#define COLLECTIVE_ISEND_IRECV_THROTTLE 1
+#define COLLECTIVE_ISEND_IRECV_THROTTLE 32
 #define MAX_NTASK_NODE 8
 
 #define PRINT_TIMER 0
@@ -663,8 +663,8 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
       int n_requests = 0;
       int ngrp_begin = iloop * COLLECTIVE_ISEND_IRECV_THROTTLE + 1;
       int ngrp_end   = (iloop + 1) * COLLECTIVE_ISEND_IRECV_THROTTLE + 1;
-      if(ngrp_end > ntask_inter)
-        ngrp_end = ntask_inter;
+      if(ngrp_end > lptask)
+        ngrp_end = lptask;
 
       if(thistask_node == 1)  // receiver
         for(ngrp = ngrp_begin; ngrp < ngrp_end; ngrp++)
@@ -680,6 +680,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
         for(ngrp = ngrp_begin; ngrp < ngrp_end; ngrp++)
           {
             target = thistask_inter ^ ngrp;
+
             if(target < ntask_inter)
               if(sendcounts_inter[target] > 0)
                 MPI_Isend(sendbuf_inter + sdispls_inter[target] * typesize, sendcounts_inter[target] * typesize, MPI_BYTE,
