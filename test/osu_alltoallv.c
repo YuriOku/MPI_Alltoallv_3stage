@@ -179,12 +179,10 @@ int main(int argc, char *argv[])
   print_preamble(rank);
   omb_papi_init(&papi_eventset);
 
-  
   if(rank == 0)
     {
       printf("# use_3stage = %d\n", options.use_3stage);
     }
-
 
   MPI_CHECK(MPI_Barrier(omb_comm));
   for(mpi_type_itr = 0; mpi_type_itr < options.omb_dtype_itr; mpi_type_itr++)
@@ -239,9 +237,12 @@ int main(int argc, char *argv[])
                   for(j = 0; j < options.warmup_validation; j++)
                     {
                       MPI_CHECK(MPI_Barrier(omb_comm));
-                      if(options.use_3stage)
+                      if(options.use_3stage == 1)
                         MPI_CHECK(MPI_Alltoallv_3stage(sendbuf_warmup, sendcounts, sdispls, omb_curr_datatype, recvbuf_warmup,
                                                        recvcounts, rdispls, omb_curr_datatype, omb_comm));
+                      else if(options.use_3stage == 2)
+                        MPI_CHECK(MPI_Alltoallv_3stage_shared(sendbuf_warmup, sendcounts, sdispls, omb_curr_datatype, recvbuf_warmup,
+                                                              recvcounts, rdispls, omb_curr_datatype, omb_comm));
                       else
                         MPI_CHECK(MPI_Alltoallv(sendbuf_warmup, sendcounts, sdispls, omb_curr_datatype, recvbuf_warmup, recvcounts,
                                                 rdispls, omb_curr_datatype, omb_comm));
@@ -251,9 +252,12 @@ int main(int argc, char *argv[])
 
               t_start = MPI_Wtime();
 
-              if(options.use_3stage)
+              if(options.use_3stage == 1)
                 MPI_CHECK(MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
                                                omb_curr_datatype, omb_comm));
+              else if(options.use_3stage == 2)
+                MPI_CHECK(MPI_Alltoallv_3stage_shared(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
+                                                      omb_curr_datatype, omb_comm));
               else
                 MPI_CHECK(MPI_Alltoallv(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
                                         omb_curr_datatype, omb_comm));

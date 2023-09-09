@@ -52,7 +52,7 @@ int main(int argc, char **argv)
   if(rank == 0)
     printf("use_3stage = %d\n", use_3stage);
 
-  int n           = 1000;
+  int n           = 5;
   int *sendcounts = (int *)malloc(sizeof(int) * size);
   int *recvcounts = (int *)malloc(sizeof(int) * size);
   int *sdispls    = (int *)malloc(sizeof(int) * size);
@@ -73,13 +73,15 @@ int main(int argc, char **argv)
     {
       for(j = 0; j < n; ++j)
         {
-          sendbuf[i * n + j] = rank * n + i;
+          sendbuf[i * n + j] = rank * size + i;
         }
     }
 
   double t1 = MPI_Wtime();
-  if(use_3stage)
+  if(use_3stage == 1)
     MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
+  else if(use_3stage == 2)
+    MPI_Alltoallv_3stage_shared(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
   else
     MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
   double t2 = MPI_Wtime();
@@ -89,9 +91,9 @@ int main(int argc, char **argv)
     {
       for(j = 0; j < n; ++j)
         {
-          if(recvbuf[i * n + j] != i * n + rank)
+          if(recvbuf[i * n + j] != i * size + rank)
             {
-              printf("rank %d: recvbuf[%d] = %d, expected %d\n", rank, i * n + j, recvbuf[i * n + j], i * n + rank);
+              printf("rank %d: recvbuf[%d] = %d, expected %d\n", rank, i * n + j, recvbuf[i * n + j], i * size + rank);
               success = 0;
             }
         }

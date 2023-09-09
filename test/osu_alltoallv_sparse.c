@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
                   for(j = 0; j < options.warmup_validation; j++)
                     {
                       MPI_CHECK(MPI_Barrier(omb_comm));
-                      if(options.use_3stage)
+                      if(options.use_3stage == 1)
                         MPI_CHECK(MPI_Alltoallv_3stage(sendbuf_warmup, sendcounts, sdispls, omb_curr_datatype, recvbuf_warmup,
                                                        recvcounts, rdispls, omb_curr_datatype, omb_comm));
                       else
@@ -268,9 +268,12 @@ int main(int argc, char *argv[])
 
               t_start = MPI_Wtime();
 
-              if(options.use_3stage)
+              if(options.use_3stage == 1)
                 MPI_CHECK(MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
                                                omb_curr_datatype, omb_comm));
+              else if(options.use_3stage == 2)
+                MPI_CHECK(MPI_Alltoallv_3stage_shared(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
+                                                      omb_curr_datatype, omb_comm));
               else
                 MPI_CHECK(MPI_Alltoallv(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
                                         omb_curr_datatype, omb_comm));
