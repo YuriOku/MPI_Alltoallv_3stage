@@ -35,8 +35,8 @@
 
 #include "../mpi_alltoallv_3stage.h"
 
-#define LEVELMAX 15
-#define ITERS 3
+#define LEVELMAX 20
+#define ITERS 100
 
 int main(int argc, char **argv)
 {
@@ -102,6 +102,8 @@ int main(int argc, char **argv)
             MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           else if(use_3stage == 2)
             MPI_Alltoallv_3stage_shared(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
+          else if(use_3stage == 3)
+            MPI_Alltoallv_3stage2(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           else
             MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           double t2 = MPI_Wtime();
@@ -156,7 +158,8 @@ int main(int argc, char **argv)
       int n = 1 << level;
 
       int iter;
-      double time = 0.0, time2 = 0.0;;
+      double time = 0.0, time2 = 0.0;
+      ;
       for(iter = 0; iter < ITERS; iter++)
         {
           int sdisp = 0, rdisp = 0;
@@ -167,11 +170,11 @@ int main(int argc, char **argv)
               sdispls[i]    = sdisp;
               sdisp += sendcounts[i];
             }
-	  double ta = MPI_Wtime();
+          double ta = MPI_Wtime();
           MPI_Alltoall(sendcounts, 1, MPI_INT, recvcounts, 1, MPI_INT, MPI_COMM_WORLD);
-	  double tb = MPI_Wtime();
+          double tb = MPI_Wtime();
 
-	  time2 += tb - ta;
+          time2 += tb - ta;
 
           for(i = 0; i < size; ++i)
             {
@@ -195,6 +198,8 @@ int main(int argc, char **argv)
             MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           else if(use_3stage == 2)
             MPI_Alltoallv_3stage_shared(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
+          else if(use_3stage == 3)
+            MPI_Alltoallv_3stage2(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           else
             MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           double t2 = MPI_Wtime();
@@ -208,7 +213,8 @@ int main(int argc, char **argv)
                 {
                   if(recvbuf[rdispls[i] + j] != i * size + rank)
                     {
-                      printf("rank %d: recvbuf[%d] = %d, expected %d\n", rank, rdispls[i] + j, recvbuf[rdispls[i] + j], i * size + rank);
+                      printf("rank %d: recvbuf[%d] = %d, expected %d\n", rank, rdispls[i] + j, recvbuf[rdispls[i] + j],
+                             i * size + rank);
                       success = 0;
                     }
                 }
