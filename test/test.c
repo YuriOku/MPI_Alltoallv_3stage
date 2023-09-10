@@ -36,7 +36,7 @@
 #include "../mpi_alltoallv_3stage.h"
 
 #define LEVELMAX 15
-#define ITERS 10
+#define ITERS 3
 
 int main(int argc, char **argv)
 {
@@ -147,7 +147,7 @@ int main(int argc, char **argv)
   if(rank == 0)
     {
       printf("#\n# non-uniform data size\n");
-      printf("# data size    latency [us]    bandwidth [MB/s]\n");
+      printf("# data size    latency [us]    bandwidth [MB/s]   latency (Alltoall) [us]\n");
     }
   success_all = 1;
 
@@ -156,7 +156,7 @@ int main(int argc, char **argv)
       int n = 1 << level;
 
       int iter;
-      double time = 0.0;
+      double time = 0.0, time2 = 0.0;;
       for(iter = 0; iter < ITERS; iter++)
         {
           int sdisp = 0, rdisp = 0;
@@ -167,7 +167,12 @@ int main(int argc, char **argv)
               sdispls[i]    = sdisp;
               sdisp += sendcounts[i];
             }
+	  double ta = MPI_Wtime();
           MPI_Alltoall(sendcounts, 1, MPI_INT, recvcounts, 1, MPI_INT, MPI_COMM_WORLD);
+	  double tb = MPI_Wtime();
+
+	  time2 += tb - ta;
+
           for(i = 0; i < size; ++i)
             {
               rdispls[i] = rdisp;
@@ -222,11 +227,13 @@ int main(int argc, char **argv)
       free(recvbuf);
 
       time /= ITERS;
+      time2 /= ITERS;
 
       double latency   = time * 1e6;
+      double latency2  = time2 * 1e6;
       double bandwidth = (size * n * sizeof(int)) / time / 1e6;
       if(rank == 0)
-        printf("%7lu %18.5f %18.5f\n", n * sizeof(int), latency, bandwidth);
+        printf("%7lu %18.5f %18.5f %18.5f\n", n * sizeof(int), latency, bandwidth, latency2);
     }
 
   free(sendcounts);
