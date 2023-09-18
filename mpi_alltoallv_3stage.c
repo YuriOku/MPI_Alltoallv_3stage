@@ -36,7 +36,7 @@
 
 #define PCHAR(x) ((char *)(x))
 #define COLLECTIVE_ISEND_IRECV_THROTTLE 32
-#define MAX_NTASK_NODE 8
+#define MAX_NTASK_NODE 4
 
 #define PRINT_TIMER 0
 
@@ -1000,7 +1000,7 @@ int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const 
           int i0 = (ind - 1) % ntask_node;
           int j  = ((ind - 1) / ntask_node) % ntask_node;
           int i1 = (ind - 1) / ntask_node / ntask_node;
-          int i  = i0 + (thistask_inter ^ i1);
+          int i  = i0 + (thistask_inter ^ i1) * ntask_node;
           if(i < ntask_all)
             cnt = recvcounts_node[i + j * ntask_all];
           else
