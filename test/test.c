@@ -35,7 +35,7 @@
 
 #include "../mpi_alltoallv_3stage.h"
 
-#define LEVELMAX 20
+#define LEVELMAX 15
 #define ITERS 100
 
 int main(int argc, char **argv)
