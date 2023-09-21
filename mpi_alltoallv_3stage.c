@@ -35,7 +35,7 @@
 #include <string.h>
 
 #define PCHAR(x) ((char *)(x))
-#define COLLECTIVE_ISEND_IRECV_THROTTLE 32
+#define COLLECTIVE_ISEND_IRECV_THROTTLE 16
 #define MAX_NTASK_NODE 8
 
 #define PRINT_TIMER 0
@@ -96,6 +96,89 @@ void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const 
 
   free(statuses);
   free(requests);
+}
+
+void alltoallv_isend_irecv2(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
+                            const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
+{
+  int ntask, thistask;
+  MPI_Comm_size(comm, &ntask);
+  MPI_Comm_rank(comm, &thistask);
+
+  int lptask = 1;
+  while(lptask < ntask)
+    lptask <<= 1;
+
+  MPI_Request *requests_send = (MPI_Request *)malloc(sizeof(MPI_Request) * COLLECTIVE_ISEND_IRECV_THROTTLE);
+  MPI_Status *statuses_send  = (MPI_Status *)malloc(sizeof(MPI_Status) * COLLECTIVE_ISEND_IRECV_THROTTLE);
+  MPI_Request *requests_recv = (MPI_Request *)malloc(sizeof(MPI_Request) * ntask);
+  MPI_Status *statuses_recv  = (MPI_Status *)malloc(sizeof(MPI_Status) * ntask);
+
+  int typesize_send, typesize_recv;
+  MPI_Type_size(sendtype, &typesize_send);
+  MPI_Type_size(recvtype, &typesize_recv);
+
+  if(recvcounts[thistask] > 0)  // local communication
+    memcpy(PCHAR(recvbuf) + rdispls[thistask] * typesize_recv, PCHAR(sendbuf) + sdispls[thistask] * typesize_send,
+           recvcounts[thistask] * typesize_recv);
+
+  int i, j;
+  int n_requests_recv = 0;
+  for(i = 1; i < lptask; i++)
+    {
+      int otask = thistask ^ i;
+      if(otask < ntask)
+        if(recvcounts[otask] > 0)
+          MPI_Irecv(PCHAR(recvbuf) + rdispls[otask] * typesize_recv, recvcounts[otask] * typesize_recv, MPI_BYTE, otask, 0, comm,
+                    &requests_recv[n_requests_recv++]);
+    }
+
+  i = 1;
+  int indices[COLLECTIVE_ISEND_IRECV_THROTTLE];
+  int index_count = COLLECTIVE_ISEND_IRECV_THROTTLE;
+  for(j = 0; j < COLLECTIVE_ISEND_IRECV_THROTTLE; j++)
+    indices[j] = j;
+
+  while(i < lptask)
+    {
+      j = 0;
+      while(j < index_count)
+        {
+          int otask = thistask ^ i;
+          if(otask < ntask)
+            {
+              if(sendcounts[otask] > 0)
+                {
+                  MPI_Issend(PCHAR(sendbuf) + sdispls[otask] * typesize_send, sendcounts[otask] * typesize_send, MPI_BYTE, otask, 0,
+                             comm, &requests_send[indices[j++]]);
+                }
+            }
+
+          i++;
+          if(i >= lptask)
+            break;
+        }
+      if(i >= lptask)
+        break;
+
+      MPI_Waitsome(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_send, &index_count, indices, statuses_send);
+    }
+
+  /* fill request buffer by dummy */
+  while(j < index_count)
+    {
+      MPI_Isend(NULL, 0, MPI_BYTE, MPI_PROC_NULL, 0, comm, &requests_send[indices[j++]]);
+    }
+
+  MPI_Waitall(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_send, statuses_send);
+  MPI_Waitall(n_requests_recv, requests_recv, statuses_recv);
+
+  free(statuses_send);
+  free(requests_send);
+  free(statuses_recv);
+  free(requests_recv);
+
+  return;
 }
 
 int MPI_Alltoallv_3stage_s_shared(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype,
@@ -1372,4 +1455,94 @@ int MPI_Alltoall_3stage(const void *sendbuf, const int sendcount, MPI_Datatype s
   free(sendcounts_s);
 
   return ret;
+}
+
+int MPI_Alltoallv_custom(const void *sendbuf, const int *sendcounts, const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
+                         const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
+{
+  int ntask_all, thistask_all;
+  MPI_Comm_size(comm, &ntask_all);
+  MPI_Comm_rank(comm, &thistask_all);
+
+  size_t *sendcounts_s = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *recvcounts_s = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *sdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *rdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
+
+  if(sendcounts_s == NULL || recvcounts_s == NULL || sdispls_s == NULL || rdispls_s == NULL)
+    {
+      if(rdispls_s != NULL)
+        free(rdispls_s);
+      if(sdispls_s != NULL)
+        free(sdispls_s);
+      if(recvcounts_s != NULL)
+        free(recvcounts_s);
+      if(sendcounts_s != NULL)
+        free(sendcounts_s);
+
+      return MPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
+    }
+
+  int i;
+  for(i = 0; i < ntask_all; i++)
+    {
+      sendcounts_s[i] = sendcounts[i];
+      recvcounts_s[i] = recvcounts[i];
+      sdispls_s[i]    = sdispls[i];
+      rdispls_s[i]    = rdispls[i];
+    }
+
+  alltoallv_isend_irecv(sendbuf, sendcounts_s, sdispls_s, sendtype, recvbuf, recvcounts_s, rdispls_s, recvtype, comm);
+
+  free(rdispls_s);
+  free(sdispls_s);
+  free(recvcounts_s);
+  free(sendcounts_s);
+
+  return MPI_SUCCESS;
+}
+
+int MPI_Alltoallv_custom2(const void *sendbuf, const int *sendcounts, const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
+                          const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
+{
+  int ntask_all, thistask_all;
+  MPI_Comm_size(comm, &ntask_all);
+  MPI_Comm_rank(comm, &thistask_all);
+
+  size_t *sendcounts_s = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *recvcounts_s = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *sdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
+  size_t *rdispls_s    = (size_t *)malloc(ntask_all * sizeof(size_t));
+
+  if(sendcounts_s == NULL || recvcounts_s == NULL || sdispls_s == NULL || rdispls_s == NULL)
+    {
+      if(rdispls_s != NULL)
+        free(rdispls_s);
+      if(sdispls_s != NULL)
+        free(sdispls_s);
+      if(recvcounts_s != NULL)
+        free(recvcounts_s);
+      if(sendcounts_s != NULL)
+        free(sendcounts_s);
+
+      return MPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
+    }
+
+  int i;
+  for(i = 0; i < ntask_all; i++)
+    {
+      sendcounts_s[i] = sendcounts[i];
+      recvcounts_s[i] = recvcounts[i];
+      sdispls_s[i]    = sdispls[i];
+      rdispls_s[i]    = rdispls[i];
+    }
+
+  alltoallv_isend_irecv2(sendbuf, sendcounts_s, sdispls_s, sendtype, recvbuf, recvcounts_s, rdispls_s, recvtype, comm);
+
+  free(rdispls_s);
+  free(sdispls_s);
+  free(recvcounts_s);
+  free(sendcounts_s);
+
+  return MPI_SUCCESS;
 }
