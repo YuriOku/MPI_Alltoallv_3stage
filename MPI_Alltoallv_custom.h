@@ -37,6 +37,9 @@ void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const 
 void alltoallv_isend_irecv2(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
                             const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
 
+void alltoallv_isend_irecv3(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
+                            const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
+
 int MPI_Alltoall_custom_s(const void *sendbuf, const size_t sendcount, MPI_Datatype sendtype, void *recvbuf, const size_t recvcount,
                           MPI_Datatype recvtype, MPI_Comm comm);
 

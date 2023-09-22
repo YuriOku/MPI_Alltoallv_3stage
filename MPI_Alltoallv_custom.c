@@ -38,8 +38,107 @@
 #define PCHAR(x) ((char *)(x))
 #define COLLECTIVE_ISEND_IRECV_THROTTLE 16
 
+/* core routine of alltoallv. use isend and irecv internally, and the number of simultaneous calls are limited by
+ * COLLECTIVE_ISEND_IRECV_THROTTLE */
 void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
                            const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
+{
+  int ntask, thistask;
+  MPI_Comm_size(comm, &ntask);
+  MPI_Comm_rank(comm, &thistask);
+
+  int lptask = 1;
+  while(lptask < ntask)
+    lptask <<= 1;
+
+  MPI_Request *requests_send = (MPI_Request *)malloc(sizeof(MPI_Request) * COLLECTIVE_ISEND_IRECV_THROTTLE);
+  MPI_Status *statuses_send  = (MPI_Status *)malloc(sizeof(MPI_Status) * COLLECTIVE_ISEND_IRECV_THROTTLE);
+  MPI_Request *requests_recv = (MPI_Request *)malloc(sizeof(MPI_Request) * COLLECTIVE_ISEND_IRECV_THROTTLE);
+  MPI_Status *statuses_recv  = (MPI_Status *)malloc(sizeof(MPI_Status) * COLLECTIVE_ISEND_IRECV_THROTTLE);
+
+  int typesize_send, typesize_recv;
+  MPI_Type_size(sendtype, &typesize_send);
+  MPI_Type_size(recvtype, &typesize_recv);
+
+  if(recvcounts[thistask] > 0)  // local communication
+    memcpy(PCHAR(recvbuf) + rdispls[thistask] * typesize_recv, PCHAR(sendbuf) + sdispls[thistask] * typesize_send,
+           recvcounts[thistask] * typesize_recv);
+
+  int i_send = 1, i_recv = 1, j_send, j_recv, k;
+  int indices_send[COLLECTIVE_ISEND_IRECV_THROTTLE], indices_recv[COLLECTIVE_ISEND_IRECV_THROTTLE];
+  int count_send = COLLECTIVE_ISEND_IRECV_THROTTLE, count_recv = COLLECTIVE_ISEND_IRECV_THROTTLE;
+  for(k = 0; k < COLLECTIVE_ISEND_IRECV_THROTTLE; k++)
+    indices_send[k] = indices_recv[k] = k;
+
+  while(i_send < lptask || i_recv < lptask)
+    {
+      j_send = j_recv = 0;
+
+      while(j_recv < count_recv)
+        {
+          if(i_recv < lptask)
+            {
+              int otask = thistask ^ i_recv;
+              if(otask < ntask)
+                if(recvcounts[otask] > 0)
+                  MPI_Irecv(PCHAR(recvbuf) + rdispls[otask] * typesize_recv, recvcounts[otask] * typesize_recv, MPI_BYTE, otask, 0,
+                            comm, &requests_recv[indices_recv[j_recv++]]);
+            }
+          else
+            {
+              MPI_Irecv(NULL, 0, MPI_BYTE, MPI_PROC_NULL, 0, comm, &requests_recv[indices_recv[j_recv++]]);
+            }
+
+          i_recv++;
+        }
+
+      while(j_send < count_send)
+        {
+          if(i_send < lptask)
+            {
+              int otask = thistask ^ i_send;
+              if(otask < ntask)
+                if(sendcounts[otask] > 0)
+                  MPI_Issend(PCHAR(sendbuf) + sdispls[otask] * typesize_send, sendcounts[otask] * typesize_send, MPI_BYTE, otask, 0,
+                             comm, &requests_send[indices_send[j_send++]]);
+            }
+          else
+            {
+              MPI_Isend(NULL, 0, MPI_BYTE, MPI_PROC_NULL, 0, comm, &requests_send[indices_send[j_send++]]);
+            }
+
+          i_send++;
+        }
+
+      if(MPI_Testsome(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_recv, &count_recv, indices_recv, statuses_recv) != MPI_SUCCESS)
+        count_recv = 0;
+
+      if(MPI_Testsome(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_send, &count_send, indices_send, statuses_send) != MPI_SUCCESS)
+        count_send = 0;
+    }
+
+  /* fill request buffer by dummy and wait for leftovers */
+  j_send = j_recv = 0;
+  while(j_recv < count_recv)
+    MPI_Irecv(NULL, 0, MPI_BYTE, MPI_PROC_NULL, 0, comm, &requests_recv[indices_recv[j_recv++]]);
+
+  while(j_send < count_send)
+    MPI_Isend(NULL, 0, MPI_BYTE, MPI_PROC_NULL, 0, comm, &requests_send[indices_send[j_send++]]);
+
+  MPI_Waitall(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_recv, statuses_recv);
+  MPI_Waitall(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_send, statuses_send);
+
+  free(statuses_send);
+  free(requests_send);
+  free(statuses_recv);
+  free(requests_recv);
+
+  return;
+}
+
+/* another implementation that executes isends and irecvs block by block. can be faster when the number of MPI ranks is small. */
+void alltoallv_isend_irecv2(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
+                            const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
 {
   int ntask, thistask;
   MPI_Comm_size(comm, &ntask);
@@ -96,7 +195,9 @@ void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const 
   free(requests);
 }
 
-void alltoallv_isend_irecv2(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
+/* another implementation that throws all irecv requests in the beginning and calls limited number of isend. equivalent performance
+ * with alltoallv_isend_irecv() but more buffer consumption */
+void alltoallv_isend_irecv3(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
                             const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
 {
   int ntask, thistask;
@@ -170,113 +271,6 @@ void alltoallv_isend_irecv2(const void *sendbuf, const size_t *sendcounts, const
 
   MPI_Waitall(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_send, statuses_send);
   MPI_Waitall(n_requests_recv, requests_recv, statuses_recv);
-
-  free(statuses_send);
-  free(requests_send);
-  free(statuses_recv);
-  free(requests_recv);
-
-  return;
-}
-
-void alltoallv_isend_irecv3(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                            const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm)
-{
-  int ntask, thistask;
-  MPI_Comm_size(comm, &ntask);
-  MPI_Comm_rank(comm, &thistask);
-
-  int lptask = 1;
-  while(lptask < ntask)
-    lptask <<= 1;
-
-  MPI_Request *requests_send = (MPI_Request *)malloc(sizeof(MPI_Request) * COLLECTIVE_ISEND_IRECV_THROTTLE);
-  MPI_Status *statuses_send  = (MPI_Status *)malloc(sizeof(MPI_Status) * COLLECTIVE_ISEND_IRECV_THROTTLE);
-  MPI_Request *requests_recv = (MPI_Request *)malloc(sizeof(MPI_Request) * COLLECTIVE_ISEND_IRECV_THROTTLE);
-  MPI_Status *statuses_recv  = (MPI_Status *)malloc(sizeof(MPI_Status) * COLLECTIVE_ISEND_IRECV_THROTTLE);
-
-  int typesize_send, typesize_recv;
-  MPI_Type_size(sendtype, &typesize_send);
-  MPI_Type_size(recvtype, &typesize_recv);
-
-  if(recvcounts[thistask] > 0)  // local communication
-    memcpy(PCHAR(recvbuf) + rdispls[thistask] * typesize_recv, PCHAR(sendbuf) + sdispls[thistask] * typesize_send,
-           recvcounts[thistask] * typesize_recv);
-
-  int i, j;
-  int n_requests_recv = 0;
-  for(i = 1; i < lptask; i++)
-    {
-      int otask = thistask ^ i;
-      if(otask < ntask)
-        if(recvcounts[otask] > 0)
-          MPI_Irecv(PCHAR(recvbuf) + rdispls[otask] * typesize_recv, recvcounts[otask] * typesize_recv, MPI_BYTE, otask, 0, comm,
-                    &requests_recv[n_requests_recv++]);
-    }
-
-  int i_send = 1, i_recv = 1, j_send, j_recv;
-  int indices_send[COLLECTIVE_ISEND_IRECV_THROTTLE], indices_recv[COLLECTIVE_ISEND_IRECV_THROTTLE];
-  int count_send = COLLECTIVE_ISEND_IRECV_THROTTLE, count_recv = COLLECTIVE_ISEND_IRECV_THROTTLE;
-  for(j = 0; j < COLLECTIVE_ISEND_IRECV_THROTTLE; j++)
-    indices_send[j] = indices_recv[j] = j;
-
-  while(i_send < lptask || i_recv < lptask)
-    {
-      j_send = j_recv = 0;
-
-      while(j_recv < count_recv)
-        {
-          if(i_recv < lptask)
-            {
-              int otask = thistask ^ i_recv;
-              if(otask < ntask)
-                if(recvcounts[otask] > 0)
-                  MPI_Irecv(PCHAR(recvbuf) + rdispls[otask] * typesize_recv, recvcounts[otask] * typesize_recv, MPI_BYTE, otask, 0,
-                            comm, &requests_recv[indices_recv[j_recv++]]);
-            }
-          else
-            {
-              MPI_Irecv(NULL, 0, MPI_BYTE, MPI_PROC_NULL, 0, comm, &requests_recv[indices_recv[j_recv++]]);
-            }
-
-          i_recv++;
-        }
-
-      while(j_send < count_send)
-        {
-          if(i_send < lptask)
-            {
-              int otask = thistask ^ i_send;
-              if(otask < ntask)
-                if(sendcounts[otask] > 0)
-                  MPI_Issend(PCHAR(sendbuf) + sdispls[otask] * typesize_send, sendcounts[otask] * typesize_send, MPI_BYTE, otask, 0,
-                             comm, &requests_send[indices_send[j_send++]]);
-            }
-          else
-            {
-              MPI_Isend(NULL, 0, MPI_BYTE, MPI_PROC_NULL, 0, comm, &requests_send[indices_send[j_send++]]);
-            }
-
-          i_send++;
-        }
-
-      if(MPI_Testsome(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_recv, &count_recv, indices_recv, statuses_recv) != MPI_SUCCESS)
-        count_recv = 0;
-
-      if(MPI_Testsome(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_send, &count_send, indices_send, statuses_send) != MPI_SUCCESS)
-        count_send = 0;
-    }
-
-  /* fill request buffer by dummy and wait for leftovers */
-  j_send = j_recv = 0;
-  while(j_recv < count_recv)
-    MPI_Irecv(NULL, 0, MPI_BYTE, MPI_PROC_NULL, 0, comm, &requests_recv[indices_recv[j_recv++]]);
-
-  while(j_send < count_send)
-    MPI_Isend(NULL, 0, MPI_BYTE, MPI_PROC_NULL, 0, comm, &requests_send[indices_send[j_send++]]);
-
-  MPI_Waitall(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_recv, statuses_recv);
-  MPI_Waitall(COLLECTIVE_ISEND_IRECV_THROTTLE, requests_send, statuses_send);
 
   free(statuses_send);
   free(requests_send);

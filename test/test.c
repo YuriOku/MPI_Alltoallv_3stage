@@ -35,8 +35,8 @@
 
 #include "../MPI_Alltoallv_custom.h"
 
-#define LEVELMAX 20
-#define ITERS 1
+#define LEVELMAX 18
+#define ITERS 100
 
 int main(int argc, char **argv)
 {
@@ -166,7 +166,7 @@ int main(int argc, char **argv)
           for(i = 0; i < size; ++i)
             {
               double r      = (double)rand() / RAND_MAX;
-              sendcounts[i] = (r > 0.5) ? (int)(n * 4 * (r - 0.5)) : 0;
+              sendcounts[i] = (r > 0.8) ? (int)(n * 25 * (r - 0.8)) : 0;
               sdispls[i]    = sdisp;
               sdisp += sendcounts[i];
             }
