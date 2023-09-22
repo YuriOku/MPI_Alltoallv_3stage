@@ -46,7 +46,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "../mpi_alltoallv_3stage.h"
+#include "../MPI_Alltoallv_custom.h"
 #include "osu_util_mpi.h"
 
 int main(int argc, char *argv[])
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
   
   if(rank == 0)
     {
-      printf("# use_3stage = %d\n", options.use_3stage);
+      printf("# use_custom = %d\n", options.use_custom);
     }
 
   for(mpi_type_itr = 0; mpi_type_itr < options.omb_dtype_itr; mpi_type_itr++)
@@ -203,8 +203,8 @@ int main(int argc, char *argv[])
                   for(j = 0; j < options.warmup_validation; j++)
                     {
                       MPI_CHECK(MPI_Barrier(omb_comm));
-                      if(options.use_3stage)
-                        MPI_CHECK(MPI_Alltoall_3stage(sendbuf_warmup, num_elements, omb_curr_datatype, recvbuf_warmup, num_elements,
+                      if(options.use_custom)
+                        MPI_CHECK(MPI_Alltoall_custom(sendbuf_warmup, num_elements, omb_curr_datatype, recvbuf_warmup, num_elements,
                                                       omb_curr_datatype, omb_comm));
                       else
                         MPI_CHECK(MPI_Alltoall(sendbuf_warmup, num_elements, omb_curr_datatype, recvbuf_warmup, num_elements,
@@ -214,9 +214,9 @@ int main(int argc, char *argv[])
                 }
 
               t_start = MPI_Wtime();
-              if(options.use_3stage)
+              if(options.use_custom)
                 MPI_CHECK(
-                    MPI_Alltoall_3stage(sendbuf, num_elements, omb_curr_datatype, recvbuf, num_elements, omb_curr_datatype, omb_comm));
+                    MPI_Alltoall_custom(sendbuf, num_elements, omb_curr_datatype, recvbuf, num_elements, omb_curr_datatype, omb_comm));
               else
                 MPI_CHECK(MPI_Alltoall(sendbuf, num_elements, omb_curr_datatype, recvbuf, num_elements, omb_curr_datatype, omb_comm));
               t_stop = MPI_Wtime();

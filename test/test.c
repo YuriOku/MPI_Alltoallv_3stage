@@ -33,7 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../mpi_alltoallv_3stage.h"
+#include "../MPI_Alltoallv_custom.h"
 
 #define LEVELMAX 20
 #define ITERS 1
@@ -47,15 +47,15 @@ int main(int argc, char **argv)
 
   int i, j;
 
-  int use_3stage = 1;
+  int use_custom = 1;
   if(argc > 1)
     {
-      use_3stage = atoi(argv[1]);
+      use_custom = atoi(argv[1]);
     }
 
   if(rank == 0)
     {
-      printf("# use_3stage = %d\n", use_3stage);
+      printf("# use_custom = %d\n", use_custom);
       printf("# size = %d\n", size);
       printf("#\n# uniform data size\n");
       printf("# data size    latency [us]    bandwidth [MB/s]\n");
@@ -98,16 +98,12 @@ int main(int argc, char **argv)
             }
 
           double t1 = MPI_Wtime();
-          if(use_3stage == 1)
-            MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
-          else if(use_3stage == 2)
-            MPI_Alltoallv_3stage_shared(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
-          else if(use_3stage == 3)
-            MPI_Alltoallv_3stage2(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
-          else if(use_3stage == 4)
+          if(use_custom == 1)
             MPI_Alltoallv_custom(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
-          else if(use_3stage == 5)
+          else if(use_custom == 2)
             MPI_Alltoallv_custom2(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
+          else if(use_custom == 3)
+            MPI_Alltoallv_custom3(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           else
             MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           double t2 = MPI_Wtime();
@@ -198,16 +194,12 @@ int main(int argc, char **argv)
             }
 
           double t1 = MPI_Wtime();
-          if(use_3stage == 1)
-            MPI_Alltoallv_3stage(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
-          else if(use_3stage == 2)
-            MPI_Alltoallv_3stage_shared(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
-          else if(use_3stage == 3)
-            MPI_Alltoallv_3stage2(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
-          else if(use_3stage == 4)
+          if(use_custom == 1)
             MPI_Alltoallv_custom(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
-          else if(use_3stage == 5)
+          else if(use_custom == 2)
             MPI_Alltoallv_custom2(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
+          else if(use_custom == 3)
+            MPI_Alltoallv_custom3(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           else
             MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_INT, recvbuf, recvcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
           double t2 = MPI_Wtime();

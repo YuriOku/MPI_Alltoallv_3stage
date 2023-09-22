@@ -402,7 +402,7 @@ struct options_t {
     int window_varied;
     int print_rate;
     int pairs;
-    int use_3stage;
+    int use_custom;
     int validate;
     enum buffer_num buf_num;
     int graph;

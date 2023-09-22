@@ -35,34 +35,22 @@ void alltoallv_isend_irecv(const void *sendbuf, const size_t *sendcounts, const 
                            const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
 
 void alltoallv_isend_irecv2(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                           const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
+                            const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
 
-int MPI_Alltoallv_3stage_s(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                           const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
-
-int MPI_Alltoallv_3stage_s2(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                           const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
-                           
-int MPI_Alltoallv_3stage_s_shared(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                           const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
-
-int MPI_Alltoallv_3stage(const void *sendbuf, const int *sendcounts, const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                         const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
-
-int MPI_Alltoallv_3stage2(const void *sendbuf, const int *sendcounts, const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                         const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
-                         
-int MPI_Alltoallv_3stage_shared(const void *sendbuf, const int *sendcounts, const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                         const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
-
-int MPI_Alltoall_3stage_s(const void *sendbuf, const size_t sendcount, MPI_Datatype sendtype, void *recvbuf, const size_t recvcount,
+int MPI_Alltoall_custom_s(const void *sendbuf, const size_t sendcount, MPI_Datatype sendtype, void *recvbuf, const size_t recvcount,
                           MPI_Datatype recvtype, MPI_Comm comm);
 
-int MPI_Alltoall_3stage(const void *sendbuf, const int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcount,
+int MPI_Alltoall_custom(const void *sendbuf, const int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcount,
                         MPI_Datatype recvtype, MPI_Comm comm);
+
+int MPI_Alltoallv_custom_s(const void *sendbuf, const size_t *sendcounts, const size_t *sdispls, MPI_Datatype sendtype, void *recvbuf,
+                           const size_t *recvcounts, const size_t *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
 
 int MPI_Alltoallv_custom(const void *sendbuf, const int *sendcounts, const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
                          const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
 
 int MPI_Alltoallv_custom2(const void *sendbuf, const int *sendcounts, const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
-                         const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
+                          const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm);
+
+int MPI_Alltoallv_custom3(const void *sendbuf, const int *sendcounts, const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
+                          const int *recvcounts, const int *rdispls, MPI_Datatype recvtype, MPI_Comm comm);

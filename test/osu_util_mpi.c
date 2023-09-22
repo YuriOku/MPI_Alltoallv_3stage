@@ -543,7 +543,7 @@ void print_help_message(int rank)
                 " (default 5)\n");
         }
 
-        fprintf(stdout, "  -E, --use_3stage            flag to use three-stage all-to-all (default 1)\n");
+        fprintf(stdout, "  -E, --use_custom            flag to use three-stage all-to-all (default 1)\n");
 
         if (options.subtype == NBC_ALLTOALL ||
             options.subtype == NBC_BCAST || options.subtype == NBC_GATHER ||
