@@ -271,9 +271,6 @@ int main(int argc, char *argv[])
               if(options.use_custom == 1)
                 MPI_CHECK(MPI_Alltoallv_custom(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
                                                omb_curr_datatype, omb_comm));
-              else if(options.use_custom == 2)
-                MPI_CHECK(MPI_Alltoallv_custom_shared(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
-                                                      omb_curr_datatype, omb_comm));
               else
                 MPI_CHECK(MPI_Alltoallv(sendbuf, sendcounts, sdispls, omb_curr_datatype, recvbuf, recvcounts, rdispls,
                                         omb_curr_datatype, omb_comm));
